@@ -93,6 +93,34 @@
       background-color: #f8f9fa;
       border-radius: 4px;
     }
+    .prediction-details.high-confidence {
+      background-color: #e8f5e9;
+      border-left: 4px solid #4CAF50;
+    }
+    .prediction-result.confident {
+      background-color: #e8f5e9;
+      border: 2px solid #4CAF50;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    .prediction-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin: 10px 0;
+      padding: 10px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+    }
+    .prediction-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+    .confidence-value {
+      font-weight: bold;
+      color: #2196F3;
+    }
   </style>
 </head>
 <body>
@@ -139,7 +167,10 @@
 
 <script>
 const N = 20; // Window size for mouse movements
+const PREDICTION_WINDOW = 10; // Number of predictions to average
+const CONFIDENCE_THRESHOLD = 0.65; // Minimum confidence threshold
 let points = [];
+let predictionHistory = [];
 let isCollecting = false;
 let currentMode = null;
 let usersData = {};
@@ -147,6 +178,9 @@ let model = null;
 
 // Helper function to get movement features
 function getFeatures(movements) {
+  if (movements.length < 2) return null;
+  
+  // Basic features
   const speeds = movements.map(p => p.v);
   const avgSpeed = speeds.reduce((a, b) => a + b, 0) / speeds.length;
   const maxSpeed = Math.max(...speeds);
@@ -155,12 +189,65 @@ function getFeatures(movements) {
   const avgX = xMovements.reduce((a, b) => a + b, 0) / xMovements.length;
   const avgY = yMovements.reduce((a, b) => a + b, 0) / yMovements.length;
   
-  return [avgSpeed, maxSpeed, avgX, avgY];
+  // Advanced features
+  const accelerations = [];
+  const angles = [];
+  for (let i = 1; i < movements.length; i++) {
+    const dt = movements[i].t - movements[i-1].t || 1;
+    const dv = movements[i].v - movements[i-1].v;
+    accelerations.push(dv / dt);
+    
+    const dx = movements[i].x - movements[i-1].x;
+    const dy = movements[i].y - movements[i-1].y;
+    angles.push(Math.atan2(dy, dx));
+  }
+  
+  const avgAccel = accelerations.reduce((a, b) => a + b, 0) / accelerations.length;
+  const maxAccel = Math.max(...accelerations.map(Math.abs));
+  
+  // Calculate direction changes
+  let directionChanges = 0;
+  for (let i = 1; i < angles.length; i++) {
+    const angleDiff = Math.abs(angles[i] - angles[i-1]);
+    if (angleDiff > Math.PI/4) directionChanges++;
+  }
+  
+  // Calculate curvature
+  const pathLength = movements.reduce((total, curr, i) => {
+    if (i === 0) return 0;
+    const prev = movements[i-1];
+    return total + Math.hypot(curr.x - prev.x, curr.y - prev.y);
+  }, 0);
+  
+  const straightLineDistance = Math.hypot(
+    movements[movements.length-1].x - movements[0].x,
+    movements[movements.length-1].y - movements[0].y
+  );
+  
+  const curvature = pathLength > 0 ? straightLineDistance / pathLength : 1;
+  
+  return [
+    avgSpeed,
+    maxSpeed,
+    avgAccel,
+    maxAccel,
+    directionChanges / movements.length,
+    curvature,
+    avgX / window.innerWidth, // Normalize coordinates
+    avgY / window.innerHeight
+  ];
 }
 
-// Mouse movement handler
+// Mouse movement handler with debouncing
+let lastProcessTime = 0;
+const PROCESS_INTERVAL = 16; // ~60fps
+
 function handleMouseMove(e) {
   if (!isCollecting) return;
+
+  const now = performance.now();
+  if (now - lastProcessTime < PROCESS_INTERVAL) return;
+  lastProcessTime = now;
 
   if (points.length) {
     const p = points.at(-1);
@@ -176,18 +263,19 @@ function handleMouseMove(e) {
     updateFeed();
     
     if (currentMode === 'identification' && points.length === N) {
-      identifyUser();
+      requestAnimationFrame(identifyUser);
     }
   }
 }
 
-// Update data display
+// Update data display with smoothing
 function updateFeed() {
   const speeds = points.slice(-N).map(p => p.v.toFixed(2));
-  feed.textContent = `Recent mouse speeds: [${speeds.join(', ')}]`;
+  const avgSpeed = (speeds.reduce((a, b) => a + Number(b), 0) / speeds.length).toFixed(2);
+  feed.textContent = `Average Speed: ${avgSpeed} px/ms | Points: ${points.length}/${N}`;
 }
 
-// Train model
+// Train model with improved architecture
 async function trainModel() {
   const usernames = Object.keys(usersData);
   console.log('Training model for users:', usernames);
@@ -209,33 +297,37 @@ async function trainModel() {
       throw new Error(`Not enough data points for user ${username}`);
     }
     
-    // Create features from each window of movements
-    for (let i = 0; i <= userData.length - N; i++) {
+    // Create features with overlap for more training data
+    for (let i = 0; i <= userData.length - N; i += Math.max(1, Math.floor(N/4))) {
       const window = userData.slice(i, i + N);
-      X.push(getFeatures(window));
-      // Create one-hot encoded output
-      const output = new Array(usernames.length).fill(0);
-      output[index] = 1;
-      y.push(output);
+      const features = getFeatures(window);
+      if (features) {
+        X.push(features);
+        const output = new Array(usernames.length).fill(0);
+        output[index] = 1;
+        y.push(output);
+      }
     }
   });
 
-  // Create and train the model
+  // Create and train the model with improved architecture
   model = tf.sequential({
     layers: [
       tf.layers.dense({
-        inputShape: [4],
+        inputShape: [8], // Updated for new features
+        units: 64,
+        activation: 'relu',
+        kernelRegularizer: tf.regularizers.l2({ l2: 0.01 })
+      }),
+      tf.layers.batchNormalization(),
+      tf.layers.dropout({ rate: 0.3 }),
+      tf.layers.dense({
         units: 32,
         activation: 'relu',
         kernelRegularizer: tf.regularizers.l2({ l2: 0.01 })
       }),
-      tf.layers.dropout({ rate: 0.2 }),
-      tf.layers.dense({
-        units: 16,
-        activation: 'relu',
-        kernelRegularizer: tf.regularizers.l2({ l2: 0.01 })
-      }),
-      tf.layers.dropout({ rate: 0.2 }),
+      tf.layers.batchNormalization(),
+      tf.layers.dropout({ rate: 0.3 }),
       tf.layers.dense({
         units: usernames.length,
         activation: 'softmax'
@@ -254,27 +346,30 @@ async function trainModel() {
 
   try {
     const result = await model.fit(xs, ys, {
-      epochs: 500,
+      epochs: 100,
       batchSize: 32,
       validationSplit: 0.2,
       shuffle: true,
       callbacks: {
         onEpochEnd: (epoch, logs) => {
-          document.getElementById('trainingStatus').innerHTML = `
-            Training... Epoch ${epoch + 1}/50<br>
-            Loss: ${logs.loss.toFixed(4)}<br>
-            Accuracy: ${(logs.acc * 100).toFixed(2)}%
-          `;
+          if (epoch % 10 === 0) {
+            document.getElementById('trainingStatus').innerHTML = `
+              Training... Epoch ${epoch + 1}/1000<br>
+              Loss: ${logs.loss.toFixed(4)}<br>
+              Accuracy: ${(logs.acc * 100).toFixed(2)}%<br>
+              Validation Accuracy: ${(logs.val_acc * 100).toFixed(2)}%
+            `;
+          }
         }
       }
     });
     
     document.getElementById('trainingStatus').innerHTML = `
       Training Complete!<br>
-      Final Accuracy: ${(result.history.acc[result.history.acc.length - 1] * 100).toFixed(2)}%
+      Final Accuracy: ${(result.history.acc[result.history.acc.length - 1] * 100).toFixed(2)}%<br>
+      Validation Accuracy: ${(result.history.val_acc[result.history.val_acc.length - 1] * 100).toFixed(2)}%
     `;
     
-    // Enable identification after training
     document.getElementById('startIdentification').disabled = false;
   } catch (error) {
     console.error('Error during training:', error);
@@ -284,37 +379,87 @@ async function trainModel() {
   updateModelInfo();
 }
 
-// Identify current user
+// Identify current user with improved confidence handling
 async function identifyUser() {
   if (!model || points.length < N) return;
 
   const features = getFeatures(points);
-  const prediction = await model.predict(tf.tensor2d([features])).array();
+  if (!features) return;
+
+  const prediction = await tf.tidy(() => {
+    const tensorFeatures = tf.tensor2d([features]);
+    return model.predict(tensorFeatures).arraySync()[0];
+  });
+  
   const usernames = Object.keys(usersData);
   
+  // Add to prediction history
+  predictionHistory.push(prediction);
+  if (predictionHistory.length > PREDICTION_WINDOW) {
+    predictionHistory.shift();
+  }
+  
+  // Calculate average predictions over the window
+  const avgPrediction = predictionHistory[0].map((_, idx) => {
+    const sum = predictionHistory.reduce((acc, pred) => acc + pred[idx], 0);
+    return sum / predictionHistory.length;
+  });
+  
   // Sort predictions by confidence
-  const predictions = prediction[0].map((conf, idx) => ({
+  const predictions = avgPrediction.map((conf, idx) => ({
     username: usernames[idx],
     confidence: conf * 100
   })).sort((a, b) => b.confidence - a.confidence);
 
-  // Create HTML for all predictions
+  // Calculate prediction stability
+  const stability = calculateStability(predictionHistory);
+  const isStable = stability > 0.8;
+  
+  // Create HTML for predictions
   const predictionsHtml = predictions.map(pred => `
-    <div class="prediction-details">
-      <div>${pred.username}: ${pred.confidence.toFixed(2)}%</div>
+    <div class="prediction-details ${pred.confidence > CONFIDENCE_THRESHOLD * 100 ? 'high-confidence' : ''}">
+      <div class="prediction-header">
+        <span>${pred.username}</span>
+        <span class="confidence-value">${pred.confidence.toFixed(2)}%</span>
+      </div>
       <div class="confidence-bar">
         <div class="confidence-fill" style="width: ${pred.confidence}%"></div>
       </div>
     </div>
   `).join('');
 
+  const topPrediction = predictions[0];
+  const isConfident = topPrediction.confidence > CONFIDENCE_THRESHOLD * 100;
+
   document.getElementById('identificationResult').innerHTML = `
-    <div class="prediction-result">
-      <h4>Most Likely User: ${predictions[0].username}</h4>
+    <div class="prediction-result ${isConfident && isStable ? 'confident' : ''}">
+      <h4>Identified User: ${isConfident && isStable ? topPrediction.username : 'Uncertain'}</h4>
+      <div class="prediction-stats">
+        <div>Confidence: ${topPrediction.confidence.toFixed(2)}%</div>
+        <div>Stability: ${(stability * 100).toFixed(2)}%</div>
+        <div>Samples: ${predictionHistory.length}/${PREDICTION_WINDOW}</div>
+      </div>
       <h5>All Predictions:</h5>
       ${predictionsHtml}
     </div>
   `;
+}
+
+// Calculate prediction stability
+function calculateStability(predictions) {
+  if (predictions.length < 2) return 0;
+  
+  const topPredictions = predictions.map(pred => 
+    pred.indexOf(Math.max(...pred))
+  );
+  
+  const mostCommon = topPredictions.reduce((acc, val) => {
+    acc[val] = (acc[val] || 0) + 1;
+    return acc;
+  }, {});
+  
+  const maxCount = Math.max(...Object.values(mostCommon));
+  return maxCount / predictions.length;
 }
 
 // Update model information display

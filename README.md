@@ -4,12 +4,12 @@ A browser-based machine learning system that identifies users based on their mou
 
 ## Features
 
-- Real-time mouse movement tracking
-- User-specific data collection
-- Neural network-based user identification
-- Live confidence scoring
-- Interactive training process
-- Real-time user identification
+- Real-time mouse movement tracking with 60fps optimization
+- Advanced movement pattern analysis
+- Neural network-based user identification with confidence scoring
+- Sliding window prediction averaging
+- Stability and confidence metrics
+- Real-time identification with visual feedback
 - Responsive visualization of predictions
 
 ## How It Works
@@ -17,8 +17,12 @@ A browser-based machine learning system that identifies users based on their mou
 The system works in three main steps:
 
 1. **Data Collection**
-   - Records mouse movements for each user
-   - Captures movement speed, position, and timing
+   - Records mouse movements at 60fps
+   - Captures comprehensive movement metrics:
+     - Speed and acceleration
+     - Direction changes
+     - Path curvature
+     - Position coordinates
    - Creates feature vectors from movement windows
    - Stores data separately for each registered user
 
@@ -26,39 +30,62 @@ The system works in three main steps:
    - Processes collected movement data into training samples
    - Creates a neural network using TensorFlow.js
    - Trains the model using collected user data
-   - Uses regularization and dropout for better generalization
+   - Uses regularization, batch normalization, and dropout
    - Provides real-time training progress feedback
+   - Monitors validation accuracy
 
 3. **User Identification**
-   - Captures live mouse movements
-   - Extracts movement features in real-time
-   - Predicts user identity using the trained model
-   - Displays confidence scores for all possible users
-   - Updates predictions continuously during mouse movement
+   - Captures live mouse movements at 60fps
+   - Extracts 8 distinct movement features in real-time
+   - Uses sliding window averaging for stable predictions
+   - Applies confidence thresholds (65%)
+   - Monitors prediction stability
+   - Updates predictions continuously with visual feedback
 
 ## Technical Details
 
 ### Neural Network Architecture
-- Input layer: 4 features (average speed, max speed, average X, average Y)
+- Input layer: 8 features
+  - Average and maximum speed
+  - Average and maximum acceleration
+  - Direction change frequency
+  - Path curvature
+  - Normalized X and Y coordinates
 - Hidden layers:
+  - Dense layer (64 units, ReLU activation, L2 regularization)
+  - Batch normalization
+  - Dropout layer (30% dropout rate)
   - Dense layer (32 units, ReLU activation, L2 regularization)
-  - Dropout layer (20% dropout rate)
-  - Dense layer (16 units, ReLU activation, L2 regularization)
-  - Dropout layer (20% dropout rate)
+  - Batch normalization
+  - Dropout layer (30% dropout rate)
 - Output layer: Softmax activation (number of units = number of users)
 
-### Features Extracted
-- Average movement speed
-- Maximum movement speed
-- Average X coordinate
-- Average Y coordinate
+### Movement Features
+- **Speed Metrics**
+  - Average movement speed
+  - Maximum speed
+  - Average acceleration
+  - Maximum acceleration
+- **Pattern Analysis**
+  - Direction change frequency
+  - Path curvature ratio
+  - Normalized screen position
+  - Movement consistency
 
 ### Training Parameters
-- Epochs: 5000
+- Epochs: 100
 - Batch size: 32
 - Validation split: 20%
 - Optimizer: Adam (learning rate: 0.001)
 - Loss function: Categorical Cross-entropy
+- L2 Regularization: 0.01
+
+### Real-time Processing
+- Frame rate: 60fps
+- Prediction window: 10 samples
+- Confidence threshold: 65%
+- Stability monitoring
+- Memory-optimized tensor operations
 
 ## Usage
 
@@ -76,27 +103,31 @@ The system works in three main steps:
 
 3. **Training the Model**
    - Click "Train Neural Network Model" after collecting data
-   - Wait for the training process to complete
-   - Monitor training progress in real-time
-   - Training is complete when accuracy stabilizes
+   - Monitor training progress and validation accuracy
+   - Training completes in approximately 100 epochs
+   - Watch for convergence in training/validation metrics
 
 4. **Identifying Users**
    - Click "Start Identification" to begin
    - Move the mouse naturally
-   - View real-time predictions and confidence scores
+   - View real-time predictions with confidence scores
+   - Monitor stability and confidence metrics
+   - System shows "Uncertain" when confidence is low
    - Click "Stop Identification" to end the session
 
 ## Requirements
 
 - Modern web browser with JavaScript enabled
-- WebGL support
+- WebGL 2.0 support
 - TensorFlow.js (loaded automatically from CDN)
+- 60fps capable display (recommended)
 
 ## Technical Requirements
 
 - Browser with WebGL 2.0 support
 - Sufficient GPU memory for model training
 - Stable internet connection (for loading TensorFlow.js)
+- Display with 60Hz refresh rate (recommended)
 
 ## Limitations
 
@@ -104,10 +135,12 @@ The system works in three main steps:
 - Performance depends on GPU capabilities
 - Requires at least 2 users for training
 - Best results with consistent mouse movement patterns
+- May show "Uncertain" when confidence is low
+- Requires stable 60fps for optimal performance
 
 ## Privacy Note
 
-This system runs entirely in the browser. No data is sent to any server, and all processing happens locally on your device.
+This system runs entirely in the browser. No data is sent to any server, and all processing happens locally on your device. Mouse movement data is stored only in temporary browser memory.
 
 ## License
 
