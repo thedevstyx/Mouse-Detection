@@ -1,59 +1,114 @@
-# Mouse Movement User Identification
+# Mouse Movement User Identification System
 
-A browser-based system that identifies users by their mouse movement patterns using TensorFlow.js and deep learning.
+A browser-based machine learning system that identifies users based on their mouse movement patterns. The system uses TensorFlow.js to train a neural network model that can distinguish between different users based on their unique mouse movement characteristics.
 
-## Quick Start
+## Features
 
-1. Download the files:
-   ```bash
-   git clone <repository-url>
-   cd mouse-movement-identification
-   ```
+- Real-time mouse movement tracking
+- User-specific data collection
+- Neural network-based user identification
+- Live confidence scoring
+- Interactive training process
+- Real-time user identification
+- Responsive visualization of predictions
 
-2. Open `index.html` in Chrome (recommended) or any modern browser.
+## How It Works
 
-## How to Use
+The system works in three main steps:
 
-### 1. Register Users (minimum 2)
-- Enter username
-- Click "Start Recording"
-- Move mouse naturally for 30-60 seconds
-- Click "Stop Recording"
-- Repeat for another user
+1. **Data Collection**
+   - Records mouse movements for each user
+   - Captures movement speed, position, and timing
+   - Creates feature vectors from movement windows
+   - Stores data separately for each registered user
 
-### 2. Train Model
-- Click "Train Neural Network Model"
-- Wait for training completion (~1-2 minutes)
-- Watch progress bar
+2. **Model Training**
+   - Processes collected movement data into training samples
+   - Creates a neural network using TensorFlow.js
+   - Trains the model using collected user data
+   - Uses regularization and dropout for better generalization
+   - Provides real-time training progress feedback
 
-### 3. Identify Users
-- Click "Start Identification"
-- Move mouse naturally
-- Watch real-time predictions
-- Click "Stop" when done
+3. **User Identification**
+   - Captures live mouse movements
+   - Extracts movement features in real-time
+   - Predicts user identity using the trained model
+   - Displays confidence scores for all possible users
+   - Updates predictions continuously during mouse movement
+
+## Technical Details
+
+### Neural Network Architecture
+- Input layer: 4 features (average speed, max speed, average X, average Y)
+- Hidden layers:
+  - Dense layer (32 units, ReLU activation, L2 regularization)
+  - Dropout layer (20% dropout rate)
+  - Dense layer (16 units, ReLU activation, L2 regularization)
+  - Dropout layer (20% dropout rate)
+- Output layer: Softmax activation (number of units = number of users)
+
+### Features Extracted
+- Average movement speed
+- Maximum movement speed
+- Average X coordinate
+- Average Y coordinate
+
+### Training Parameters
+- Epochs: 5000
+- Batch size: 32
+- Validation split: 20%
+- Optimizer: Adam (learning rate: 0.001)
+- Loss function: Categorical Cross-entropy
+
+## Usage
+
+1. **Setup**
+   - Open `index.html` in a modern web browser
+   - No server required - runs entirely in the browser
+   - Requires WebGL support for TensorFlow.js
+
+2. **Recording User Data**
+   - Enter a username in the input field
+   - Click "Start Recording" to begin collecting mouse movements
+   - Move your mouse naturally around the screen
+   - Click "Stop Recording" when finished
+   - Repeat for at least 2 different users
+
+3. **Training the Model**
+   - Click "Train Neural Network Model" after collecting data
+   - Wait for the training process to complete
+   - Monitor training progress in real-time
+   - Training is complete when accuracy stabilizes
+
+4. **Identifying Users**
+   - Click "Start Identification" to begin
+   - Move the mouse naturally
+   - View real-time predictions and confidence scores
+   - Click "Stop Identification" to end the session
 
 ## Requirements
-- Modern web browser (Chrome recommended)
-- GPU with WebGL support
-- 4GB RAM minimum
 
-## Technical Overview
-- Neural Network: 6 layers (64→48→32→24→16→output)
-- GPU-accelerated using WebGL
-- Real-time predictions
-- No server needed - runs entirely in browser
+- Modern web browser with JavaScript enabled
+- WebGL support
+- TensorFlow.js (loaded automatically from CDN)
 
-## Troubleshooting
-If high CPU usage:
-1. Enable hardware acceleration in browser
-2. Check console (F12) for GPU status
-3. Close other intensive tabs
+## Technical Requirements
 
-## Code Structure
-```
-index.html          # Single file application containing:
-  ├── Neural Network Model
-  ├── GPU Acceleration
-  ├── Data Collection
-  └── User Interface
-``` 
+- Browser with WebGL 2.0 support
+- Sufficient GPU memory for model training
+- Stable internet connection (for loading TensorFlow.js)
+
+## Limitations
+
+- Requires sufficient training data for accurate identification
+- Performance depends on GPU capabilities
+- Requires at least 2 users for training
+- Best results with consistent mouse movement patterns
+
+## Privacy Note
+
+This system runs entirely in the browser. No data is sent to any server, and all processing happens locally on your device.
+
+## License
+
+MIT License - Feel free to use, modify, and distribute this code for any purpose. 
